@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <script src="/local-profile.js"></script>
+  <script src="/vendor/three.min.js"></script>
+  <script src="/vendor/STLLoader.js"></script>
+
+
+
+
+
+
+
+  <meta charset="UTF-8" />
+  <title>インサイド・ループ技能評価</title>
+  <style>
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    #heatmap,
+    #comparePlot,
+    #CombinedContainer {
+      display: none !important;
+    }
+
+    body { font-family: 'Hiragino Sans', sans-serif; padding: 20px; }
+    button { margin-right: 10px; padding: 10px; font-size: 25px; }
+    #score, #loopSummary, #loopDetails, #proDistance { font-size: 30px;}
+    pre { background: #f4f4f4; padding: 10px; max-height: 200px; overflow: auto; }
+
+  
+    #loading {
+      display: none;     
+      width: 1000px;       
+      max-width: 90%;
+      box-sizing: border-box;
+      text-align: left;
+      position: fixed;   
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px 40px;
+      border-radius: 10px;
+      z-index: 9999;  
+    }
+
+    #loading .progress-container {
+      width: 100%;
+      background: #ddd;
+      border-radius: 5px;
+      height: 30px;
+      margin: auto;
+      overflow: hidden;
+    }
+
+    #loading .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: #3498db;
+      transition: width 0.3s;
+    }
+
+    #loading #progressText {
+      font-size: 50px;
+      margin-top: 15px;
+      text-align: center;
+    }
+
+    #loopPlot, #comparePlot {
+      display: none;
+      margin: 0 auto;
+      width: auto;
+      max-width: 100%;
+      margin-bottom: 40px;
+    }
+    h2 { font-size: 40px; }
+    h3 { font-size: 30px; }
+    h4 { font-size: 30px; }
+    h5 { font-size: 50px; }
+
+    #appTitle {
+      font-size: 50px;
+      margin: 20px 0;   
+      padding: 10px 0;  
+    }
+
+
+
+    .heatmap-grid {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 40px;
+      flex-wrap: nowrap;
+      margin: 20px auto;
+      max-width: 100%;
+    }
+    .heatmap-grid div {
+      flex: 1;
+      max-width: 50%;
+      text-align: center;
+    }
+    .heatmap-grid img {
+      width: 100%;
+      height: auto;
+    }
+    #radarChart {
+      display: block;
+      margin: 0 auto;
+      width: 600px;
+      max-width: 100%;
+      margin-bottom: 30px;
+    }
+    .heatmap-grid h4 {
+      min-height: 3em;
+      text-align: center;
+    }
+    .radar-wrap {
+      position: relative;
+      display: inline-block;
+    }
+    .radar-tip {
+      position: absolute;
+      width: 220px;  
+      height: 60px; 
+    }
+   .radar-tip .hotspot {
+      width: 100%;     
+      height: 48px;      
+      border-radius: 50%; 
+      pointer-events: auto;
+    }
+    .radar-tip .tooltip {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translate(-50%, -100%);
+      background: #ACC7DF;
+      color: black;
+      font-size: 25px;
+      line-height: 1.4;
+      padding: 8px 10px;
+      border-radius: 8px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s ease;
+      z-index: 1;
+      max-width: 70vw;
+    }
+    .radar-tip:hover .tooltip {
+      opacity: 1;
+    }
+    
+    .radar-wrap { position: relative; z-index: 10; overflow: visible; }
+    .radar-tip { position: absolute; transform: translate(-50%, -50%); z-index: 15; }
+    .radar-tip .hotspot { 
+      width: 12%;
+      min-height: 60px;  
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      pointer-events: auto;
+    }
+    
+    #Rui .hm-wrap > .hm-tip,
+    #Rui .hm-wrap > .hm-tip .tooltip,
+    #Rui .hm-wrap > .hm-tip .tooltip * {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      direction: ltr !important;
+    }
+
+    #Rui .hm-wrap > .hm-tip .tooltip{
+      position: absolute;
+      bottom: calc(100% + 10px);
+      left: 0%;
+
+      display: block !important;        
+      width: clamp(360px, 60vw, 800px) !important;
+      min-width: 500px !important;
+      max-height: 70vh;
+      overflow: auto;
+
+      white-space: normal !important;
+      word-break: normal !important;
+      overflow-wrap: break-word !important;
+      line-break: loose;
+
+      background: #ACC7DF;
+      color: black;
+      font-size: 30px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s ease;
+      text-align: center;
+      z-index: 3;
+    }
+    #Rui .hm-wrap > .hm-tip:hover .tooltip,
+    #Rui .hm-wrap > .hm-tip:focus .tooltip { opacity: 1; }
+
+    #Rui .hm-wrap > .hm-tip .tooltip::after{
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 0%;
+      border: 6px solid transparent;
+      border-top-color: gray;
+    }
+
+    #Rui .hm-wrap{
+      position: relative;            
+      display: inline-block;
+      max-width: 100%;
+      text-align: initial;     
+    }
+    #Rui .hm-wrap img{ display:block; height:auto; }
+
+ 
+    #Rui .hm-wrap .hm-tip{
+      position: absolute;        
+      top: 8px;
+      left: 8px;
+      width: 28px; height: 28px; border-radius: 50%;
+      background: gray; color: white; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 2;
+    }
+
+    #Rui .hm-wrap .hm-tip .tooltip{
+      position: absolute;
+      bottom: calc(100% + 10px);
+      left: 0%;
+
+
+      width: clamp(360px, 60vw, 800px); 
+      max-height: 70vh; overflow: auto;
+
+      white-space: normal;
+      word-break: normal;
+      overflow-wrap: break-word;
+      line-break: loose;
+
+      background: #ACC7DF; color: black;
+      font-size: 20px; 
+      padding: 10px 12px; border-radius: 8px;
+      opacity: 0; pointer-events: none; transition: opacity .15s;
+      text-align: center; z-index: 3;
+      font-weight: normal; 
+    }
+    #Rui .hm-wrap .hm-tip:hover .tooltip,
+    #Rui .hm-wrap .hm-tip:focus .tooltip{ opacity: 1; }
+
+    #Rui .hm-wrap .hm-tip .tooltip::after{
+      content: ""; position: absolute; top: 100%;
+      left: 0%; 
+      border: 6px solid transparent; border-top-color: gray;
+    }
+    .inline-tip {
+      position: relative;
+      cursor: help;
+      border-bottom: 2px dotted rgba(0,0,0,.35); 
+    }
+
+    .inline-tip .bubble {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: inline-block;
+      width: fit-content;         
+      max-width: 1000%;    
+      white-space: nowrap;
+
+      max-height: 60vh;
+      overflow: auto;
+
+      background: #ACC7DF;
+      color: #000;
+      font-size: 25px;
+      line-height: 1.6;
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.15);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s ease;
+      z-index: 30;
+
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      font-weight: normal; 
+      text-align: center;
+      white-space: nowrap;
+      word-break: normal;
+      overflow-wrap: break-word;
+    }
+
+    .inline-tip .bubble::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: #ACC7DF;
+    }
+
+    .inline-tip:hover .bubble,
+    .inline-tip:focus-within .bubble {
+      opacity: 1;
+    }
+
+    .inline-tip,
+    .inline-tip * {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+      font-weight: inherit;
+    }
+
+    .inline-tip {
+      position: relative;
+      display: inline-block;      
+      cursor: help;
+      border-bottom: 2px dotted rgba(0,0,0,.35); 
+    }
+
+    .metric-line { margin: 8px 0 4px; }
+    .metric-line .inline-tip { margin-right: 1.2em; }
+
+    .num-red {
+      color: red;
+      font-weight: bold; 
+    }
+
+    .video-wrap{
+      width: min(100%, 960px);
+      aspect-ratio: 16 / 9;
+      margin: 0 auto 24px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 6px 24px rgba(0,0,0,.12);
+    }
+    .video-wrap iframe{ width:100%; height:100%; border:0; display:block; }
+
+    button:disabled {
+      background: #eaeaea !important;   
+      color: #b5b5b5 !important;        
+      border: 1px solid #dcdcdc !important;
+      opacity: 1 !important;          
+      cursor: not-allowed;
+    }
+
+    #commentSection h3 {
+      color: #333;
+      font-weight: bold;
+    }
+    #commentSection .blockTitle {
+      font-weight: bold;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+    #typeLabel {
+      text-align: center !important;
+    }
+    .comment-card {
+      background: #ffffff;
+      padding: 20px 30px;
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+      margin-top: 25px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;   
+    }
+
+    .comment-card .blockTitle {
+      font-size: 30px;
+      margin-bottom: 8px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .comment-card ul {
+      text-align: left;
+      margin: 0 auto;
+      display: inline-block;
+      font-size: 26px;
+      line-height: 1.6;
+    }
+
+    .metric-card {
+      background: #ffffff;
+      padding: 25px 30px;
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+      margin-top: 25px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: center;
+      font-size: 30px;
+    }
+
+    .metric-card .metric-line {
+      margin: 14px 0;
+    }
+
+    .metric-card .inline-tip {
+      font-size: 30px;
+    }
+
+   
+    #proExample {
+        text-align: center !important;
+    }
+
+    #proExample h2,
+    #proExample h3 {
+        text-align: center !important;
+        width: 100%;
+    }
+
+    #proExample img,
+    #proExample video {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    #csvTitle,
+    #accLabel,
+    #gyroLabel,
+    #accOutput,
+    #gyroOutput {
+        text-align: center !important;
+        margin-left: auto !important;
+        margin-right: auto !important; 
+    }
+
+    #accOutput,
+    #gyroOutput {
+        max-width: 500px;
+        font-size: 18px;
+        text-align: center !important; 
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    #btnSaveCsv {
+        display: block;
+        margin: 0 auto;
+        text-align: center;
+    }
+
+    #newsBox {
+      max-width: 900px;
+      margin: 40px auto 30px;
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+      padding: 18px 24px;
+      text-align: center;
+    }
+
+    .news-header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .news-title {
+      font-size: 32px;
+      font-weight: bold;
+    }
+
+    .news-sub {
+      font-size: 18px;
+      color: #888;
+    }
+
+    .news-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 auto;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .news-list li {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 22px;
+      text-align: center;     
+    }
+
+    .news-list li:last-child {
+      border-bottom: none;
+    }
+
+    .news-date {
+      font-size: 18px;
+      color: #666;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .news-text {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+    }
+
+    .news-badge {
+      font-size: 16px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: bold;
+    }
+
+    .news-badge.new {
+      background: #e74c3c;
+      color: white;
+    }
+
+    #newsBox,
+    #newsBox * {
+      writing-mode: horizontal-tb !important;
+      text-orientation: mixed !important;
+    }
+
+    #autoToast {
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      
+      padding: 16px 30px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      border-radius: 10px;
+      font-size: 32px;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 99999;
+
+      transition: opacity .25s ease;
+    }
+
+
+  </style>
+  <script src="/vendor/confetti.browser.min.js"></script>
+  <script>
+
+  document.addEventListener("DOMContentLoaded", () => {
+    currentUserName = localProfile.currentUser.displayName;
+    document.getElementById("login-area").textContent = "ローカルモード：このパソコンに結果を保存します";
+    document.getElementById("btnRi").disabled = false;
+  });
+  </script>
+
+</head>
+<body>
+  <div class="container">
+
+    <div style="text-align:right; margin-bottom: 8px">
+      <label for="langSelect" style="font-size:14px; margin-right:6px;">Language:</label>
+      <select id="langSelect">
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div id="autoModeArea" style="text-align:right; margin-bottom: 10px; font-size:18px;">
+      <label style="cursor:pointer;">
+        <input type="checkbox" id="autoRestartToggle" checked style="transform:scale(1.2); margin-right:4px;">
+        自動やり直し
+      </label>
+
+      <label style="cursor:pointer; margin-left:10px;">
+        <input type="checkbox" id="autoStopToggle" checked style="transform:scale(1.2); margin-right:4px;">
+        自動終了 & 解析開始
+      </label>
+    </div>
+
+
+
+
+    <h5 id="appTitle">インサイド・ループ技能評価システム<br></h5>
+
+    <div id="login-area" style="margin-top:20px;"></div>
+    
+    <button id="btnConnect">接続 &amp; センシング開始</button>
+    <input type="file" id="csvFiles" accept=".csv" multiple style="display:none;">
+    <button id="btnCsvMode">CSVから解析</button>
+    <button id="btnRestart" style="display:none;">やり直す</button>
+    <button id="btnStop" disabled>センシング終了</button>
+    <button id="btnCancel"  style="display:none;">中止</button>
+    <button id="btnRi"  onclick="location.href='/viewer'">履歴を見る</button>
+
+
+    <!-- ===== 更新情報 / お知らせ ===== -->
+    <div id="newsBox">
+    <div class="news-header">
+      <span class="news-title" id="newsTitle">お知らせ</span>
+      <span class="news-sub">News / Update</span>
+    </div>
+
+    <ul class="news-list">
+      <li>
+        <span class="news-date">2025/1/13</span>
+        <span class="news-badge new">NEW</span>
+        <span class="news-text">演出を追加しました</span>
+      </li>
+      <li>
+        <span class="news-date">2025/1/11</span>
+        <span class="news-text">自動センシングモードを追加しました</span>
+      </li>
+      <li>
+        <span class="news-date">2025/12/29</span>
+        <span class="news-text">プロ類似度のヒートマップを１次元に変更しました</span>
+      </li>
+      <li>
+        <span class="news-date">2025/12/23</span>
+        <span class="news-text">プロ類似度の評価基準を調整しました</span>
+      </li>
+    </ul>
+  </div>
+
+
+    
+
+    <h2 id="demoHeading"><br>デモ動画</h2>
+
+
+    <div id="introVideo" class="video-wrap" aria-label="参考動画">
+      <iframe
+        src="https://www.youtube.com/embed/x0VCf-ClRmM?si=aH6Zstq-lA3qtXoO"
+        title="YouTube video player"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin"
+        allowfullscreen
+        loading="lazy">
+      </iframe>
+    </div>
+
+    <!-- プログレスバー -->
+    <div id="loading">
+      <div class="progress-container">
+        <div id="progressBar" class="progress-bar"></div>
+      </div>
+      <div id="progressText">解析準備中…</div>
+    </div>
+
+    <!-- リアルタイムグラフ -->
+    <h3 style="display:none;" id="accTitle">加速度</h3>
+    <canvas id="accChart" width="800" height="150" style="display: none;"></canvas>
+    <h3 style="display:none;" id="gyroTitle">角速度</h3>
+    <canvas id="gyroChart" width="800" height="150" style="display: none;"></canvas>
+
+    <!-- 解析結果エリア -->
+    <hr id="hrTitle" style="display: none; border: none; border-top: 2px solid black; width: 100%; margin: 40px 0;" />
+    <br>
+    <div id="saveSection" style="display: none;">
+      <input type="text" id="resultName" placeholder="タイトル" style="font-size:16px; padding:5px; width:340px;" />
+      <button id="btnSaveResult" style="display:none;">結果を保存する</button>
+    </div>
+
+    <h2 id="Title" style="display: none;">解析結果</h2>
+    <h3 id="RadarTitle" style="display: none;">総合評価（レーダーチャート）</h3>
+    <!-- <img id="radarChart" style="display: none; width: 600px; max-width: 100%; margin-bottom: 30px;" /> -->
+    <!-- レーダーチャート（画像＋ホットスポット） -->
+    <div id="radarWrap" class="radar-wrap" style="display:none; width: 600px; max-width: 100%;">
+      <img id="radarChart" style="width: 100%; height: auto; display:block; margin-bottom: 30px;" />
+
+      <div class="radar-tip" style="left: 49%; top: 2%;">
+        <div class="hotspot" title="自身の類似度"></div>
+        <div class="tooltip" id="tipSelfSim"></div>
+      </div>
+
+      <div class="radar-tip" style="left: 88%; top: 36%;">
+        <div class="hotspot" title="平均ループ時間"></div>
+        <div class="tooltip" id="tipMeanLoopTime"></div>
+      </div>
+
+      <div class="radar-tip" style="left: 73%; top: 91%;">
+        <div class="hotspot" title="ループ時間のばらつき"></div>
+        <div class="tooltip" id="tipLoopVar"></div>
+      </div>
+
+      <div class="radar-tip" style="left: 23%; top: 91%;">
+        <div class="hotspot" title="安定開始ループ"></div>
+        <div class="tooltip" id="tipStableStart"></div>
+      </div>
+
+      <div class="radar-tip" style="left: 9%; top: 36%;">
+        <div class="hotspot" title="プロ類似度"></div>
+        <div class="tooltip" id="tipProSim"></div>
+      </div>
+    </div>
+
+    <!-- ▼ 自動コメント（タイプ・強み・弱み・改善案） -->
+    <div id="commentSection" style="display:none;">
+      <h3 id="typeLabel" style="font-size:35px; margin-bottom:20px;"></h3>
+
+      <div class="comment-card">
+        <div id="strengths"></div>
+        <div id="weaknesses"></div>
+        <div id="suggestions"></div>
+      </div>
+    </div>
+
+
+
+
+    <div id="score"></div><br>
+    <div id="proDistance"></div><br>
+    <div id="loopSummary"></div>
+    <pre id="loopDetails" style="display: none;"></pre>
+    <h3 id="Ken" style="display: none;">ループ検出</h3>
+    <img id="loopPlot" style="display: none; width: 1200px; height: auto;" />
+    <h3 id="HeatmapTitle" style="display: none;">ループ類似度</h3>
+    <div id="Rui" style="display: none;" class="heatmap-grid">
+      <!-- 自己比較 -->
+      <div class="hm-wrap">
+        <img id="selfHeatmap" alt="自分 vs 自分ヒートマップ" style="max-width: 100%;" />
+        <div class="hm-tip" tabindex="0" aria-label="自己比較の説明">i
+          <div class="tooltip" id="tipSelfHeatmap"></div>
+        </div>
+      </div>
+
+      <!-- プロ比較 -->
+      <div class="hm-wrap">
+        <img id="proHeatmap" alt="プロ距離ヒートマップ" style="max-width: 100%;" />
+        <div class="hm-tip" tabindex="0" aria-label="プロ比較の説明">i
+          <div class="tooltip" id="tipProHeatmap"></div>
+        </div>
+      </div>
+    </div>
+    <br><h3 id="orientationTitle" style="display:none;">指動作の再現アニメーション（β版）</h3>
+    <div id="orientation3d" style="width: 700px; height: 600px; margin: 0 auto; display:none;"></div>
+
+
+    
+    </div>
+
+    <hr id="hrCsv" style="display:none; border:none; border-top:2px solid black; width:100%; margin:40px 0;" />
+
+    <div id="proExample" style="display: none;">
+      <h2 id="proTitle"></h2>
+      <h3 id="proMean"></h3>
+      <h3 id="proStd"></h3>
+      <h3 id="proSnap"></h3>
+      <h3 id="proSnapStd"></h3>
+      <h3 id="proSegTitle"></h3>
+      <img src="/pro_segu.png" alt="プロのループ検出図" style="width: 100%; max-width: 1200px;" />
+      <h3 id="proHmTitle"></h3>
+      <img src="/pro_heatmap.png" alt="プロのヒートマップ" style="width: 100%; max-width: 800px;" />
+      <h3 id="proVideoTitle"></h3>
+      <video controls style="max-width: 60%;">
+        <source src="/pro.mp4" type="video/mp4" />
+        お使いのブラウザは動画に対応していません。
+      </video>
+      <h3 id="proAnimeTitle"></h3>
+      <video controls style="max-width: 60%;">
+        <source src="/proanime.mp4" type="video/mp4" />
+        お使いのブラウザは動画に対応していません。
+      </video>
+    </div>
+
+
+
+    <hr id="hrCsv" style="display: none; border: none; border-top: 2px solid black; width: 100%; margin: 40px 0;" />
+    <h2 id="csvTitle" style="display: none;">取得データ (CSV形式)</h2>
+    <button id="btnSaveCsv" style="display: none;">CSVを保存</button>
+    <h3 id="accLabel" style="display: none;">加速度データ</h3>
+    <pre id="accOutput" style="display: none;"></pre>
+    <h3 id="gyroLabel" style="display: none;">角速度データ</h3>
+    <pre id="gyroOutput" style="display: none;"></pre>
+
+    <script src="/vendor/chart.umd.min.js"></script>
+    <script>
+      localProfile.onReady((user) => {
+        if (!user) {
+          console.log("未ログイン → index内のログインボタンを使用する");
+          return;
+         }
+      });
+
+    </script>
+
+    <script>
+      // バックエンドのベースURL
+      const API_ROOT = '';
+
+      const btnConnect   = document.getElementById('btnConnect');
+      const btnStop      = document.getElementById('btnStop');
+      const btnCsvMode   = document.getElementById('btnCsvMode');
+      const csvInput     = document.getElementById('csvFiles');
+      const btnRi        = document.getElementById('btnRi');
+      const btnSaveResult= document.getElementById('btnSaveResult');
+      const loadingDiv   = document.getElementById('loading');
+      const progressBar  = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const scoreDiv     = document.getElementById('score');
+      const loopPlotImg  = document.getElementById('loopPlot');
+      const accOutput    = document.getElementById('accOutput');
+      const gyroOutput   = document.getElementById('gyroOutput');
+      const btnCancel   = document.getElementById('btnCancel');
+      const btnRestart  = document.getElementById('btnRestart');
+      const demoHeading  = document.getElementById('demoHeading');
+      const appTitle  = document.getElementById('appTitle');
+      const newsBox       = document.getElementById('newsBox');
+      let currentUserName = 'あなた';
+      let autoStartTime = null;
+      let autoRestartEnabled = true;
+      let autoStopEnabled = true;
+
+
+
+
+      // ===== i18n =====
+      let lang = localStorage.getItem('lang') || 'ja';
+      let lastResult = null;
+      const PRO_MEAN_S = 0.429;
+      const PRO_STD_S  = 0.072;
+
+      let q0 = null;        
+      let q0_inv = null;   
+
+
+      const i18n = {
+        ja: {
+          appTitle: 'インサイド・ループ技能評価システム',
+          demoHeading: 'デモ動画',
+          newsBox: 'おしらせ / 更新情報',
+          btnConnectStart: '接続 & センシング開始',
+          btnConnectAgain: 'もう一度センシング',
+          btnCsvMode: 'CSVから解析',
+          btnRestart: 'やり直す',
+          btnStop: 'センシング終了',
+          btnCancel: '中止',
+          btnRi: '履歴を見る',
+          csvTitle: '取得データ (CSV形式)',
+          accTitle: '加速度',
+          gyroTitle: '角速度',
+          titleResult: '解析結果',
+          heatmapTitle: 'ループ類似度',
+          overallScore: '総合評価',
+          points: '点',
+          tipSelfSim: '自身の類似度：<br>各ループの繰り返しの一致度。高いほど安定。<br>類似度が高いほど高評価',
+          tipMeanLoopTime: 'スナップの強さのばらつき：<br>各ループの指を返すとき（スナップ）の強さの標準偏差。小さいほど一定の強さでループができている。<br>小さいほど高評価',
+          tipLoopVar: 'ループ時間のばらつき：<br>各ループ時間の標準偏差。小さいほどリズムが一定。<br>小さいほど高評価',
+          tipStableStart: '安定開始ループ：<br>安定し始めるまでに要した周回数。<br>小さいほど高評価',
+          tipProSim: 'プロ類似度：<br>プロの動きとの一致度。高いほど近い。<br>高いほど高評価',
+          tipSelfHeatmap: 'ループ類似度（自己比較）：<br>i周目とj周目の類似度。<br>青=高い / 赤=低い',
+          tipProHeatmap: 'ループ類似度（プロ比較）：<br>各ループとプロの類似度。<br>対角が青いほど一致',
+          m_totalLoops: '総ループ数',
+          m_totalLoops_help: '計測中に実施したインサイド・ループの合計回数',
+          m_stableStart: '安定開始',
+          m_stableStart_help: 'ループが安定し始めるまでにかかったループ数',
+          m_selfScore: '類似度スコア',
+          m_selfScore_help: '自身の各ループの繰り返し一致度（安定性）',
+          m_proScore: 'プロ類似度スコア',
+          m_proScore_help: 'プロのループとの一致度',
+          m_loopTime: 'ループ時間',
+          m_loopTime_help: 'ループ時間の平均とばらつき（標準偏差）',
+          m_avg: '平均',
+          m_var: 'ばらつき',
+          m_snap: '手首を返す強さ',
+          m_snap_help: '各ループのスナップ最大値の中央値とばらつき',
+          unit_sec: '秒',
+          unit_ms2: 'm/s²',
+          analysisPreparing: '解析準備中…',
+          selectTwoCsv: '加速度CSVと角速度CSVの2つを選んでください',
+          btnSaveCsvLabel: 'CSVを保存',
+          placeholderTitle: 'タイトルを入力（メモ代わりに使ってください）',
+          untitled: '無題',
+          btnSaveResult: '結果を保存する',
+          proTitle: '参考データ（プロ）',
+          proMean: '平均ループ時間',
+          proStd: 'ループ時間の標準偏差',
+          proSnap: '手首を返す強さ',
+          proSnapStd: '手首を返す強さの標準偏差',
+          proSegTitle: 'プロのループ検出',
+          proHmTitle: 'プロのヒートマップ',
+          proVideoTitle: 'プロの実演映像',
+          proAnimeTitle: 'プロの指の動き',
+          analysisStarting: '解析開始…',
+          analysisDone: '解析完了！',
+          connectFailed: '接続失敗',
+          analysisFailed: '解析失敗',
+          cancelFailed: '中止に失敗',
+          noResultToSave: '保存できる結果がありません',
+          savedOk: (name)=> `「${name}」として保存しました`,
+          savedNg: '保存に失敗しました'
+        },
+        en: {
+          appTitle: 'Inside Loop Skill Evaluation',
+          demoHeading: 'Demo Video',
+          newsBox: 'News', 
+          btnConnectStart: 'Connect & Start Sensing',
+          btnConnectAgain: 'Sense Again',
+          btnCsvMode: 'Analyze from CSV',
+          btnRestart: 'Restart',
+          btnStop: 'Stop Sensing',
+          btnCancel: 'Cancel',
+          btnRi: 'View History',
+          csvTitle: 'Captured Data (CSV)',
+          accTitle: 'Acceleration',
+          gyroTitle: 'Angular Velocity',
+          titleResult: 'Analysis Results',
+          heatmapTitle: 'Loop Similarity',
+          overallScore: 'Overall Score',
+          points: 'pt',
+
+          analysisPreparing: 'Preparing…',
+          selectTwoCsv: 'Please select two CSV files: acceleration and gyroscope.',
+          btnSaveCsvLabel: 'Save CSV',
+          placeholderTitle: 'Enter a title',
+          untitled: 'Untitled',
+          btnSaveResult: 'Save Result',
+          proTitle: 'Reference Data (Pro)',
+          proMean: 'Mean Loop Time',
+          proStd: 'Loop Time Std. Dev.',
+          proSnap: 'Snap Strength',
+          proSnapStd: 'Snap Std. Dev.',
+          proSegTitle: 'Pro: Loop Detection',
+          proHmTitle: 'Pro: Heatmap',
+          proVideoTitle: 'Pro: Demo Video',
+          proAnimeTitle: 'Pro: Animation',
+
+          tipSelfSim: 'Self Similarity:<br>How consistently each loop repeats the same motion.<br>Higher = more stable.',
+          tipMeanLoopTime: 'Mean Loop Time:<br>Average time per loop (pros ≈ 0.4s).<br>Shorter = better.',
+          tipLoopVar: 'Loop Time Variation:<br>Std. dev. of loop times (rhythm stability).<br>Smaller = better.',
+          tipStableStart: 'Stable Start Loop:<br>Loops needed until stabilized.<br>Smaller = better.',
+          tipProSim: 'Pro Similarity:<br>Similarity to the pro’s motion.<br>Higher = better.',
+
+          tipSelfHeatmap: 'Loop Similarity (Self vs Self):<br>Similarity between loop i and j.<br>Blue=high / Red=low.',
+          tipProHeatmap: 'Loop Similarity (vs Pro):<br>Similarity between your loops and the pro.<br>Bluer diagonal = closer.',
+
+          m_totalLoops: 'Total Loops',
+          m_totalLoops_help: 'Total number of inside loops during measurement.',
+          m_stableStart: 'Stable Start',
+          m_stableStart_help: 'Number of loops until becoming stable.',
+          m_selfScore: 'Self Similarity Score',
+          m_selfScore_help: 'How consistently your loops repeat (stability).',
+          m_proScore: 'Pro Similarity Score',
+          m_proScore_help: 'Similarity to the pro’s loops.',
+          m_loopTime: 'Loop Time',
+          m_loopTime_help: 'Mean loop time and variation (std. dev.).',
+          m_avg: 'avg',
+          m_var: 'stdev',
+          m_snap: 'Snap Strength',
+          m_snap_help: 'Median of per-loop max snap and its variation.',
+          unit_sec: 's',
+          unit_ms2: 'm/s²',
+
+          analysisStarting: 'Starting analysis…',
+          analysisDone: 'Analysis complete!',
+          connectFailed: 'Connection failed',
+          analysisFailed: 'Analysis failed',
+          cancelFailed: 'Cancel failed',
+          noResultToSave: 'No result to save',
+          savedOk: (name)=> `Saved as “${name}”`,
+          savedNg: 'Save failed'
+        }
+      };
+
+      const t = (k)=> {
+        const v = i18n[lang][k];
+        return typeof v === 'string' ? v : (v ?? i18n.ja[k] ?? k);
+      };
+      const tf = (k, ...args)=> {
+        const v = i18n[lang][k];
+        return typeof v === 'function' ? v(...args) : t(k);
+      };
+
+      function setText(id, text){ const el = document.getElementById(id); if(el) el.textContent = text; }
+      function setHTML(id, html){ const el = document.getElementById(id); if(el) el.innerHTML = html; }
+
+      function applyI18nStatic(){
+        setText('appTitle', t('appTitle'));
+        setText('demoHeading', t('demoHeading'));
+        setText('newsTitle', t('newsBox'));
+        setText('btnConnect', t('btnConnectStart'));
+        setText('btnCsvMode', t('btnCsvMode'));
+        setText('btnRestart', t('btnRestart'));
+        setText('btnStop', t('btnStop'));
+        setText('btnCancel', t('btnCancel'));
+        setText('btnRi', t('btnRi'));
+        setText('csvTitle', t('csvTitle'));
+        setText('accTitle', t('accTitle'));
+        setText('gyroTitle', t('gyroTitle'));
+        setText('Title', t('titleResult'));
+        setText('HeatmapTitle', t('heatmapTitle'));
+        setText('btnSaveResult', t('btnSaveResult'));
+        setText('proTitle', t('proTitle'));
+        setText('proSegTitle', t('proSegTitle'));
+        setText('proHmTitle', t('proHmTitle'));
+        setText('proVideoTitle', t('proVideoTitle'));
+        setText('proAnimeTitle', t('proAnimeTitle'));
+        setText('proMean', `${t('proMean')}: ${PRO_MEAN_S} ${t('unit_sec')}`);
+        setText('proStd',  `${t('proStd')}: ${PRO_STD_S} ${t('unit_sec')}`);
+        setText('proSnap', `${t('proSnap')}: 91.45 ${t('unit_ms2')}`);
+        setText('proSnapStd', `${t('proSnapStd')}: 25.80 ${t('unit_ms2')}`);
+
+        setHTML('tipSelfSim', t('tipSelfSim'));
+        setHTML('tipMeanLoopTime', t('tipMeanLoopTime'));
+        setHTML('tipLoopVar', t('tipLoopVar'));
+        setHTML('tipStableStart', t('tipStableStart'));
+        setHTML('tipProSim', t('tipProSim'));
+        setHTML('tipSelfHeatmap', t('tipSelfHeatmap'));
+        setHTML('tipProHeatmap', t('tipProHeatmap'));
+
+        setText('btnSaveCsv', t('btnSaveCsvLabel'));
+        setText('csvTitle', t('csvTitle'));
+        setText('accLabel', t('accTitle'));
+        setText('gyroLabel', t('gyroTitle'));
+        setText('progressText', t('analysisPreparing'));
+
+        const rn = document.getElementById('resultName');
+        if (rn) rn.placeholder = t('placeholderTitle');
+
+        document.documentElement.lang = lang;
+      }
+
+      showNews(true);
+
+
+      const langSel = document.getElementById('langSelect');
+      if (langSel){
+        langSel.value = lang;
+        langSel.addEventListener('change', (e)=>{
+          lang = e.target.value || 'ja';
+          localStorage.setItem('lang', lang);
+          applyI18nStatic();
+           
+          if (lastResult) {
+            document.getElementById('RadarTitle').innerHTML =
+              `<span class="num-red">${t('overallScore')}: ${lastResult.total_score.toFixed(1)} ${t('points')}</span>`;
+            const scoreDiv = document.getElementById('score');
+            scoreDiv.innerHTML = buildMetricsHTML(lastResult);
+          }
+        });
+      }
+      applyI18nStatic();
+
+      function setConnectButtonInitial(){
+        setText('btnConnect', t('btnConnectStart'));
+      }
+      function setConnectButtonAgain(){
+        setText('btnConnect', t('btnConnectAgain'));
+      }
+
+
+      function showIntroVideo(show=true){
+        const v = document.getElementById('introVideo');
+        if (v) v.style.display = show ? 'block' : 'none';
+        if (demoHeading) demoHeading.style.display = show ? 'block' : 'none';
+        if (appTitle) appTitle.style.display = show ? 'block' : 'none';
+      }
+
+
+      let device, controlChar, dataChar, buffer = '';
+      const acc  = [], gyro = [];
+      let isCsvMode = false;   
+
+      const accCtx  = document.getElementById('accChart').getContext('2d');
+      const gyroCtx = document.getElementById('gyroChart').getContext('2d');
+      const accData  = { labels: [], datasets: [
+        { label: 'ax', data: [], borderColor: 'blue',    fill:false, pointRadius:0 },
+        { label: 'ay', data: [], borderColor: 'skyblue', fill:false, pointRadius:0 },
+        { label: 'az', data: [], borderColor: 'navy',    fill:false, pointRadius:0 }
+      ]};
+      const gyroData = { labels: [], datasets: [
+        { label: 'gx', data: [], borderColor: 'red',     fill:false, pointRadius:0 },
+        { label: 'gy', data: [], borderColor: 'orange',  fill:false, pointRadius:0 },
+        { label: 'gz', data: [], borderColor: 'darkred', fill:false, pointRadius:0 }
+      ]};
+      const accChart  = new Chart(accCtx,  { type:'line', data:accData,  options:{animation:false,scales:{x:{display:false}}}});
+      const gyroChart = new Chart(gyroCtx, { type:'line', data:gyroData, options:{animation:false,scales:{x:{display:false}}}});
+
+      const SERVICE_UUID = '88888888-4abd-ba0d-b7c6-ff0a00200021';
+      const CONTROL_UUID = '88888888-4abd-ba0d-b7c6-ff0a00200022';
+      const DATA_UUID    = '88888888-4abd-ba0d-b7c6-ff0a00200023';
+
+      function csvToJson(text, isAcc=true) {
+        const lines = text.trim().split('\n');
+        lines.shift();
+        return lines.map(l => {
+          const c = l.split(',');
+          return isAcc
+            ? { t:+c[0], ax:+c[1], ay:+c[2], az:+c[3] }
+            : { t:+c[0], gx:+c[1], gy:+c[2], gz:+c[3] };
+        });
+      }
+
+      function showNews(show = true) {
+        if (newsBox) {
+          newsBox.style.display = show ? 'block' : 'none';
+        }
+      }
+
+      const autoRestartToggle = document.getElementById('autoRestartToggle');
+      const autoStopToggle = document.getElementById('autoStopToggle');
+
+      autoRestartToggle.onchange = () => {
+        autoRestartEnabled = autoRestartToggle.checked;
+        console.log("Auto Restart:", autoRestartEnabled);
+      };
+
+      autoStopToggle.onchange = () => {
+        autoStopEnabled = autoStopToggle.checked;
+        console.log("Auto Stop:", autoStopEnabled);
+      };
+
+
+      function resetUIBeforeMeasure() {
+        document.getElementById('commentSection').style.display = 'none';
+        document.getElementById('radarWrap').style.display = 'none';
+        document.getElementById('Title').style.display = 'none';
+        document.getElementById('RadarTitle').style.display = 'none';
+        document.getElementById('radarChart').style.display = 'none';
+        document.getElementById('loopPlot').style.display = 'none';
+        document.getElementById('selfHeatmap').style.display = 'none';
+        document.getElementById('proHeatmap').style.display = 'none';
+        document.getElementById('proExample').style.display = 'none';
+        document.getElementById('saveSection').style.display = 'none';
+        document.getElementById('csvTitle').style.display = 'none';
+        document.getElementById('btnSaveCsv').style.display = 'none';
+        document.getElementById('accLabel').style.display = 'none';
+        document.getElementById('gyroLabel').style.display = 'none';
+        document.getElementById('accOutput').style.display = 'none';
+        document.getElementById('gyroOutput').style.display = 'none';
+        // document.getElementById('hrPro').style.display = 'none';
+        document.getElementById('hrCsv').style.display = 'none';
+        document.getElementById('hrTitle').style.display = 'none';
+        document.getElementById('Ken').style.display = 'none';
+        document.getElementById('HeatmapTitle').style.display = 'none';
+        document.getElementById('Rui').style.display = 'none';
+        document.getElementById('score').textContent           = '';
+        document.getElementById('proDistance').textContent     = '';
+        document.getElementById('loopSummary').textContent     = '';
+        document.getElementById('loopSummary').innerHTML       = '';
+        document.getElementById('orientationTitle').style.display = 'none';
+        document.getElementById('orientation3d').style.display = 'none';
+        const loopDetails = document.getElementById('loopDetails');
+        loopDetails.textContent                               = '';
+        loopDetails.style.display                             = 'none';
+        acc.length = 0; gyro.length = 0;
+        accData.labels.length = 0; accData.datasets.forEach(d=>d.data.length=0);
+        gyroData.labels.length = 0; gyroData.datasets.forEach(d=>d.data.length=0);
+        accChart.update(); gyroChart.update();
+      }
+      function hideMeasureUI() {
+        document.getElementById('accChart').style.display = 'none';
+        document.getElementById('gyroChart').style.display = 'none';
+        document.getElementById('accTitle').style.display = 'none';
+        document.getElementById('gyroTitle').style.display = 'none';
+      }
+
+      async function runAnalysis(payload) {
+        showIntroVideo(false); 
+        showNews(false);
+        const startRes = await fetch(`${API_ROOT}/start_analysis?lang=${lang}`, { method:'POST' });
+        const { task_id } = await startRes.json();
+        loadingDiv.style.display = 'block';
+        progressBar.style.width = '0%';
+        progressText.textContent = t('analysisStarting');
+
+        const poll = setInterval(async ()=>{
+          const res = await fetch(`${API_ROOT}/progress/${task_id}`);
+          if(!res.ok) return;
+          const info = await res.json();
+          progressBar.style.width  = `${info.progress}%`;
+          progressText.textContent  = info.message;
+          if(info.progress>=100) clearInterval(poll);
+        },300);
+
+        const analyzeRes = await fetch(`${API_ROOT}/analyze?task_id=${task_id}&lang=${lang}`, {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({ ...payload, lang })
+        });
+        const json = await analyzeRes.json();
+
+
+        clearInterval(poll);
+        progressBar.style.width  = '100%';
+        progressText.textContent = t('analysisDone');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        loadingDiv.style.display = 'none';
+
+        return json;
+      }
+
+      btnCsvMode.onclick  = ()=> csvInput.click();
+      csvInput.onchange    = async ()=>{
+        showNews(false); 
+        showIntroVideo(false);
+        if(csvInput.files.length<2){
+          alert(t('selectTwoCsv'));
+          return;
+        }
+
+        isCsvMode = true; 
+
+        document.getElementById("login-area").style.display="none";
+        btnConnect.style.display  = 'none';
+        btnCsvMode.style.display  = 'none';
+        btnRi.style.display       = 'none';
+        btnStop.style.display    = 'none';
+        document.getElementById('autoModeArea').style.display = 'none';
+
+        showIntroVideo(false);
+
+        
+
+        const accJson  = csvToJson(await csvInput.files[0].text(),true);
+        const gyroJson = csvToJson(await csvInput.files[1].text(),false);
+        resetUIBeforeMeasure();
+        try {
+          const result = await runAnalysis({ acc:accJson, gyro:gyroJson });
+          lastResult = result;
+          renderResult(result);
+        } catch(err) {
+          alert(t('analysisFailed') + ': ' + err.message);
+        }
+      };
+
+      // センシング開始
+      btnConnect.onclick = async ()=>{
+        showIntroVideo(false);
+        showNews(false);
+        isCsvMode = false;
+        resetUIBeforeMeasure();
+        try {
+          if (!device || !device.gatt.connected) {
+            device = await navigator.bluetooth.requestDevice({
+              filters: [
+                { name: 'ゆびせん1号' },
+                { name: 'ゆびせん2号' },
+                { name: 'ゆびせん3号' },
+                { name: 'ゆびせん4号' },
+                { name: 'ゆびせん5号' },
+                { name: 'ゆびせん6号' },
+                { name: 'ゆびせん7号' }
+              ],
+              optionalServices: [SERVICE_UUID]
+            });
+          }
+
+          const server = await device.gatt.connect();
+          const svc    = await server.getPrimaryService(SERVICE_UUID);
+          controlChar  = await svc.getCharacteristic(CONTROL_UUID);
+          dataChar     = await svc.getCharacteristic(DATA_UUID);
+          await controlChar.writeValue(new Uint8Array([1]));
+          await dataChar.startNotifications();
+          dataChar.addEventListener('characteristicvaluechanged',handleNotify);
+          autoStartTime = performance.now();
+          document.getElementById('accTitle').style.display='block';
+          document.getElementById('gyroTitle').style.display='block';
+          document.getElementById('accChart').style.display='block';
+          document.getElementById('gyroChart').style.display='block';
+          
+          btnConnect.style.display   = 'none';             
+          btnStop.style.display      = 'inline-block';      
+          btnStop.disabled           = false;
+          btnCsvMode.style.display   = 'none';
+          btnRi.style.display        = 'none';
+          btnCancel.style.display   = 'inline-block';
+          btnRestart.style.display  = 'inline-block';
+          showIntroVideo(false);
+        } catch(err) {
+          alert(t('connectFailed') + ': ' + err.message);
+        }
+      };
+
+      btnCancel.onclick = async () => {
+        try {
+          try { await controlChar?.writeValue(new Uint8Array([0])); } catch(e){}
+          try { 
+            await dataChar?.stopNotifications(); 
+            dataChar?.removeEventListener('characteristicvaluechanged', handleNotify);
+          } catch(e){}
+
+          hideMeasureUI();
+          resetUIBeforeMeasure();
+
+          showIntroVideo(true);
+          showNews(true);
+          btnConnect.style.display   = 'inline-block';
+          btnConnect.disabled        = false;
+          setConnectButtonInitial();
+          btnCsvMode.style.display   = 'inline-block';
+          btnRi.style.display        = 'inline-block';
+          btnStop.style.display      = 'none';
+          btnCancel.style.display    = 'none';
+          btnRestart.style.display   = 'none';
+          document.getElementById('autoModeArea').style.display = 'block';
+          document.getElementById("login-area").style.display="block";
+        } catch (err) {
+          alert(t('cancelFailed') + ': ' + err.message);
+        }
+      };
+
+      async function safeStopMeasure() {
+        try { await controlChar?.writeValue(new Uint8Array([0])); } catch(e){}
+        try { 
+          await dataChar?.stopNotifications(); 
+          dataChar?.removeEventListener('characteristicvaluechanged', handleNotify);
+        } catch(e){}
+        hideMeasureUI();
+      }
+
+      btnRestart.onclick = async () => {
+        await safeStopMeasure();
+
+        resetUIBeforeMeasure();
+
+
+        btnConnect.style.display = 'inline-block';
+        btnConnect.disabled      = false;
+        btnCsvMode.style.display = 'inline-block';
+        btnRi.style.display      = 'inline-block'
+        btnStop.style.display    = 'none';
+        btnCancel.style.display  = 'none';
+        btnRestart.style.display = 'none';
+        document.getElementById('autoModeArea').style.display = 'block';
+
+        showIntroVideo(true);
+        showNews(true);
+
+        btnConnect.click();
+      
+      };
+
+
+
+
+
+      // センシング終了→解析
+      btnStop.onclick = async ()=>{
+        try {
+          btnConnect.style.display='none';
+          btnCsvMode.style.display='none';
+          btnStop.style.display='none';
+          btnRi.style.display='none';
+          btnCancel.style.display  = 'none';
+          btnRestart.style.display = 'none';
+          document.getElementById('autoModeArea').style.display = 'none';
+          document.getElementById("login-area").style.display="none"
+          showIntroVideo(false);
+          showNews(false);
+          hideMeasureUI();
+          await controlChar.writeValue(new Uint8Array([0]));
+          await dataChar.stopNotifications();
+          const result = await runAnalysis({ acc, gyro });
+          lastResult = result;
+          renderResult(result);
+        } catch(err) {
+          alert(t('analysisFailed') + ': ' + err.message);
+        }
+      };
+      let restart_threshold = 210;  
+      let stop_threshold = 12;      
+      let noMotionTime = 0;
+      let lastTimestamp = null;
+      let autoEnabled = true;      
+
+
+      function handleNotify(event) {
+        buffer += new TextDecoder().decode(event.target.value);
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for(const line of lines) {
+          const p = line.trim().split(',').map(Number);
+          if(p.length===7){
+            const [t,ax,ay,az,gx,gy,gz]=p;
+            acc.push({ t,ax,ay,az });
+            gyro.push({ t,gx,gy,gz });
+            const norm = Math.sqrt(ax*ax + ay*ay + az*az);
+
+            if (lastTimestamp === null) lastTimestamp = t;
+            const dt = (t - lastTimestamp) / 1000;
+            lastTimestamp = t;
+            if (autoEnabled) {
+                const elapsedSec = (performance.now() - autoStartTime) / 1000;
+                const autoStopWindow = (elapsedSec > 5.0);
+
+                // === (1) 自動やり直し ===
+                if (autoRestartEnabled && norm > restart_threshold) {
+                    console.log("AUTO RESTART!");
+                    autoRestart();
+                    return;
+                }
+
+
+                // === (2) 自動終了 ===
+                if (autoStopEnabled && autoStopWindow && norm < stop_threshold) {
+                    noMotionTime += dt;
+                    if (noMotionTime >= 3.0) {
+                        console.log("AUTO STOP!");
+                        autoStop();
+                        return;
+                    }
+                } else {
+                    noMotionTime = 0;
+                }
+
+            }
+
+            accData.labels.push(''); gyroData.labels.push('');
+            accData.datasets[0].data.push(ax);
+            accData.datasets[1].data.push(ay);
+            accData.datasets[2].data.push(az);
+            gyroData.datasets[0].data.push(gx);
+            gyroData.datasets[1].data.push(gy);
+            gyroData.datasets[2].data.push(gz);
+            if(accData.labels.length>100){
+              accData.labels.shift();
+              accData.datasets.forEach(d=>d.data.shift());
+            }
+            if(gyroData.labels.length>100){
+              gyroData.labels.shift();
+              gyroData.datasets.forEach(d=>d.data.shift());
+            }
+            accChart.update(); gyroChart.update();
+          }
+        }
+      }
+      
+      async function autoRestart() {
+          console.log("AUTO RESTART");
+
+          try { await controlChar.writeValue(new Uint8Array([0])); } catch(e){}
+
+          try { await dataChar.stopNotifications(); } catch(e){}
+
+          acc.length = 0;
+          gyro.length = 0;
+          buffer = '';
+          noMotionTime = 0;
+          lastTimestamp = null;
+          q0 = null;
+          q0_inv = null;
+
+          setTimeout(async ()=>{
+              try {
+                  await controlChar.writeValue(new Uint8Array([1]));
+
+                  await dataChar.startNotifications();
+                  dataChar.addEventListener('characteristicvaluechanged', handleNotify);
+
+                  autoStartTime = performance.now();
+                  console.log("AUTO RESTART DONE");
+                  showAutoToast("やり直し");
+
+              } catch(e) {
+                  console.error("restart failed", e);
+              }
+          }, 200);
+      }
+
+
+
+
+      let autoStopLock = false;
+
+      async function autoStop() {
+        if (autoStopLock) return; 
+        autoStopLock = true;
+
+        console.log("AUTO STOP → btnStop.click()");
+
+        btnStop.click();
+
+        setTimeout(() => {
+          autoStopLock = false;
+        }, 2000);
+      }
+
+      function showAutoToast(msg="自動やり直ししました") {
+        const toast = document.getElementById("autoToast");
+        toast.textContent = msg;
+        toast.style.opacity = 1;
+
+        setTimeout(() => {
+          toast.style.opacity = 0;
+        }, 500); 
+      }
+
+
+      // 結果描画
+      function renderResult(json){
+  
+        document.getElementById('Title').style.display='block';
+        document.getElementById('RadarTitle').style.display='block';
+        document.getElementById('radarChart').style.display='block';
+        document.getElementById('radarWrap').style.display = 'inline-block';
+        document.getElementById('loopPlot').style.display='block';
+        document.getElementById('selfHeatmap').style.display='block';
+        document.getElementById('proHeatmap').style.display='block';
+        document.getElementById('proExample').style.display='block';
+        document.getElementById('saveSection').style.display='block';
+        document.getElementById('btnSaveResult').style.display = 'inline-block';
+        const radarImg = document.getElementById('radarChart');
+        radarImg.src = `data:image/png;base64,${json.radar_chart}`;
+        document.getElementById('RadarTitle').innerHTML =
+          `<span class="num-red">${t('overallScore')}: ${json.total_score.toFixed(1)} ${t('points')}</span>`;
+
+        // ▼ 自動コメントセクション表示
+        const cSec  = document.getElementById('commentSection');
+        const typeL = document.getElementById('typeLabel');
+        const sDiv  = document.getElementById('strengths');
+        const wDiv  = document.getElementById('weaknesses');
+        const sugDiv= document.getElementById('suggestions');
+
+        cSec.style.display = 'block';
+
+        // タイプ表示
+        const baseName = currentUserName || (lang === 'ja' ? 'あなた' : 'You');
+        const labelName = (lang === 'ja' && baseName !== 'あなた')
+          ? `${baseName}さん`
+          : baseName;
+        const connector = (lang === 'ja' ? 'は ' : ' is ');
+        typeL.innerHTML = `
+          <span style="color:#000;">
+            ${labelName}${connector}
+          </span><br>
+          <span class="num-red">
+            ${json.type}
+          </span>
+        `;
+
+
+        // 強み
+        if (json.comments?.strengths?.length){
+          sDiv.innerHTML = `
+            <div class="blockTitle">良い点</div>
+            <ul>
+              ${json.comments.strengths.map(s => `<li>${s}</li>`).join('')}
+            </ul>
+          `;
+        } else {
+          sDiv.innerHTML = '';
+        }
+
+        // 弱み
+        if (json.comments?.weaknesses?.length){
+          wDiv.innerHTML = `
+            <div class="blockTitle">改善点</div>
+            <ul>
+              ${json.comments.weaknesses.map(w => `<li>${w}</li>`).join('')}
+            </ul>
+          `;
+        } else {
+          wDiv.innerHTML = '';
+        }
+
+        // 改善案
+        if (json.comments?.suggestions?.length){
+          sugDiv.innerHTML = `
+            <div class="blockTitle">改善案</div>
+            <ul>
+              ${json.comments.suggestions.map(a => `<li>${a}</li>`).join('')}
+            </ul>
+          `;
+        } else {
+          sugDiv.innerHTML = '';
+        }
+
+
+
+        // ループ検出図
+        const loopPlotImg = document.getElementById('loopPlot');
+        loopPlotImg.src = `data:image/png;base64,${json.loop_plot}`;
+
+        // ヒートマップ
+        document.getElementById('selfHeatmap').src = `data:image/png;base64,${json.self_heatmap}`;
+        document.getElementById('proHeatmap').src  = `data:image/png;base64,${json.pro_heatmap}`;
+        document.getElementById('HeatmapTitle').style.display = 'block';
+        document.getElementById('Rui').style.display = 'flex';
+
+    
+        const totalLoops = json.loop_count;
+        const stableStr  = (json.stable_loop !== null) ? `${json.stable_loop} 周目` : 'なし';
+        const scoreStr   = `${json.score.toFixed(1)} 点`;
+        const proDistStr = (json.pro_distance_mean !== null && json.pro_distance_mean !== undefined)
+          ? json.pro_distance_mean.toFixed(1)
+          : 'なし';
+
+        const meanTxt = (json.loop_mean_duration !== null)
+          ? `${json.loop_mean_duration.toFixed(3)} 秒`
+          : 'なし';
+        const stdTxt  = (json.loop_std_duration !== null)
+          ? `${json.loop_std_duration.toFixed(3)} 秒`
+          : 'なし';
+
+        const snapMedTxt = (json.snap_median !== null && json.snap_median !== undefined)
+          ? `${json.snap_median.toFixed(2)} m/s²`
+          : '—';
+        const snapStdTxt = (json.snap_std !== null && json.snap_std !== undefined)
+          ? `${json.snap_std.toFixed(2)} m/s²`
+          : '—';
+        const proScore100  = (json.pro_score_100   != null) ? `${json.pro_score_100.toFixed(1)} 点` : 'なし';
+
+
+    
+        const scoreDiv = document.getElementById('score');
+    
+        scoreDiv.innerHTML = `
+          <div class="metric-card">
+            ${buildMetricsHTML(json)}
+          </div>
+        `;
+
+        document.getElementById('proDistance').style.display = 'none';
+        document.getElementById('loopSummary').style.display  = 'none';
+
+        const loopDetails = document.getElementById('loopDetails');
+        if (json.loop_duration_list?.length){
+          loopDetails.textContent = json.loop_duration_list.join('\n');
+          loopDetails.style.display='block';
+        } else {
+          loopDetails.style.display='none';
+        }
+
+        document.getElementById('hrCsv').style.display   = 'block';
+        document.getElementById('csvTitle').style.display = 'block';
+        document.getElementById('btnSaveCsv').style.display = 'block';
+        document.getElementById('accLabel').style.display  = 'block';
+        document.getElementById('gyroLabel').style.display = 'block';
+        document.getElementById('accOutput').style.display  = 'block';
+        document.getElementById('gyroOutput').style.display = 'block';
+
+        document.getElementById('accOutput').textContent =
+          'time,x,y,z\n' + acc.map(d=>`${d.t},${d.ax},${d.ay},${d.az}`).join('\n');
+        document.getElementById('gyroOutput').textContent =
+          'time,x,y,z\n' + gyro.map(d=>`${d.t},${d.gx},${d.gy},${d.gz}`).join('\n');
+
+        const btnConnect = document.getElementById('btnConnect');
+        const btnCsvMode = document.getElementById('btnCsvMode');
+        const btnRi      = document.getElementById('btnRi');
+        const btnStop    = document.getElementById('btnStop');
+
+        btnConnect.style.display   = 'inline-block';
+        btnConnect.disabled        = false;
+        setConnectButtonAgain();
+        btnCsvMode.style.display   = 'inline-block';
+        btnRi.style.display        = 'inline-block';
+        btnStop.style.display      = 'none';
+        document.getElementById('autoModeArea').style.display = 'block';
+
+        const s = json.total_score;
+
+        if (s >= 70) {
+          if (s < 80) {
+            showConfettiAt(0.5, 0.9);
+          }
+          else if (s < 90) {
+            const origins = [
+              [0.2, 0.6], 
+              [0.8, 0.9], 
+              [0.4, 1.1], 
+            ];
+
+            origins.forEach(([x, y], i) => {
+              setTimeout(() => showConfettiAt(x, y), i * 200);
+            });
+          }
+          else {
+            const shots = 30;   
+            const interval = 50; 
+
+            for (let i = 0; i < shots; i++) {
+              setTimeout(() => {
+                showConfettiAt(
+                  Math.random(),      
+                  Math.random() * 0.8  
+                );
+              }, i * interval);
+            }
+          }
+        }
+
+        // ---- Three.js 姿勢アニメーション ----
+        if (json.quaternions) {
+        document.getElementById("orientationTitle").style.display = "block";
+        const container = document.getElementById("orientation3d");
+        container.style.display = "block";
+
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+        camera.position.set(0, 0, 120);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(width, height);
+        container.innerHTML = "";
+        container.appendChild(renderer.domElement);
+
+        const light1 = new THREE.DirectionalLight(0xffffff, 1.0);
+        light1.position.set(50, 50, 100);
+        scene.add(light1);
+        scene.add(new THREE.AmbientLight(0x888888));
+
+        let model = null;
+        
+        const modelFixQ = new THREE.Quaternion();
+        modelFixQ.setFromEuler(new THREE.Euler(
+          THREE.MathUtils.degToRad(90),  
+          THREE.MathUtils.degToRad(180),    
+          THREE.MathUtils.degToRad(-270)   
+        ));
+
+        const loader = new THREE.STLLoader();
+        loader.load("中指2.stl", function (geometry) {
+          const material = new THREE.MeshStandardMaterial({
+            color: 0xffc9b1,   
+            roughness: 0.7,   
+            metalness: 0.0    
+          });
+
+          model = new THREE.Mesh(geometry, material);
+
+          geometry.computeBoundingBox();
+          geometry.center();
+
+          model.scale.set(6, 6, 6);
+
+          scene.add(model);
+        });
+
+      
+        let q0 = null;
+        let q0_inv = null;
+
+        function applyQuaternion(q) {
+          if (!model) return;
+
+        
+          const threeQ = new THREE.Quaternion(q[1], -q[3], q[2], q[0]);
+
+
+          if (!q0) {
+            q0 = threeQ.clone();
+            q0_inv = q0.clone().invert();
+            console.log("🎯 初期姿勢キャリブレーション完了");
+          }
+
+
+          const q_rel = q0_inv.clone().multiply(threeQ);
+
+      
+          const q_final = modelFixQ.clone().multiply(q_rel);
+
+          model.setRotationFromQuaternion(q_final);
+        }
+
+
+        let idx = 0;
+        function animate() {
+          requestAnimationFrame(animate);
+
+          if (json.quaternions.length > 0) {
+            applyQuaternion(json.quaternions[idx]);
+            idx = (idx + 1) % json.quaternions.length;
+          }
+
+          renderer.render(scene, camera);
+        }
+
+ 
+        let animationStarted = false;
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting && !animationStarted) {
+              animationStarted = true;
+              console.log("🎬 姿勢アニメーション開始");
+              animate();
+            }
+          });
+        });
+
+        observer.observe(container);
+      }
+    }
+
+      function buildMetricsHTML(json){
+          const totalLoops = json.loop_count;
+          const stableStr  = (json.stable_loop !== null) ? `${json.stable_loop}` : (lang==='ja'?'なし':'—');
+          const scoreStr   = `${json.score.toFixed(1)}`;
+          const meanTxt = (json.loop_mean_duration != null)
+            ? `${json.loop_mean_duration.toFixed(3)} ${t('unit_sec')}` : (lang==='ja'?'なし':'—');
+          const stdTxt  = (json.loop_std_duration != null)
+            ? `${json.loop_std_duration.toFixed(3)} ${t('unit_sec')}` : (lang==='ja'?'なし':'—');
+          const snapMedTxt = (json.snap_median != null)
+            ? `${json.snap_median.toFixed(2)} ${t('unit_ms2')}` : (lang==='ja'?'—':'—');
+          const snapStdTxt = (json.snap_std != null)
+            ? `${json.snap_std.toFixed(2)} ${t('unit_ms2')}` : (lang==='ja'?'—':'—');
+          const proScore100 = (json.pro_score_100 != null) ? `${json.pro_score_100.toFixed(1)}` : (lang==='ja'?'なし':'—');
+
+          const wrap = (label, val, help) => `
+            <span class="inline-tip">
+              ${label}： <strong><span class="num-red">${val}</span></strong>
+              <span class="bubble">${help}</span>
+            </span>`;
+
+          return `
+            <div class="metric-line">
+              ${wrap(t('m_totalLoops'), `${totalLoops} ${lang==='ja'?'周':''}`, t('m_totalLoops_help'))}
+              ${wrap(t('m_stableStart'), lang==='ja'? `${stableStr} 周目` : (stableStr==='—'?'—': `#${stableStr}`), t('m_stableStart_help'))}
+            </div>
+
+            <div class="metric-line">
+              ${wrap(t('m_selfScore'), `${scoreStr} ${t('points')}`, t('m_selfScore_help'))}
+              ${wrap(t('m_proScore'), (proScore100==='—'||proScore100==='なし') ? (lang==='ja'?'なし':'—') : `${proScore100} ${t('points')}`, t('m_proScore_help'))}
+            </div>
+
+            <div class="metric-line">
+              ${wrap(t('m_loopTime'), `<strong><span class="num-red">${meanTxt}</span></strong>（${t('m_avg')}） / <strong><span class="num-red">${stdTxt}</span></strong>（${t('m_var')}）`, t('m_loopTime_help'))}
+            </div>
+
+            <div class="metric-line">
+              ${wrap(t('m_snap'), `<strong><span class="num-red">${snapMedTxt}</span></strong>（${lang==='ja'?'中央値':'median'}） / <strong><span class="num-red">${snapStdTxt}</span></strong>（${t('m_var')}）`, t('m_snap_help'))}
+            </div>
+          `;
+        }
+
+
+      // 保存
+      btnSaveResult.onclick = async ()=>{
+        const user = localProfile.currentUser;
+        if(!user){
+            alert("保存にはログインが必要です");
+            location.href = "index.html";
+            return;
+        }
+
+        if(!lastResult){ alert("保存できる結果がありません"); return; }
+
+        const name = document.getElementById('resultName').value.trim() || "無題";
+        const accCsv  = 'time,x,y,z\n'+acc.map(d=>`${d.t},${d.ax},${d.ay},${d.az}`).join('\n');
+        const gyroCsv = 'time,x,y,z\n'+gyro.map(d=>`${d.t},${d.gx},${d.gy},${d.gz}`).join('\n');
+
+        const payload = {
+            ...lastResult,
+            name,
+            acc_csv: accCsv,
+            gyro_csv: gyroCsv,
+            user_id: user.uid,           
+            user_name: user.displayName || "未設定", 
+            email: user.email          
+        };
+
+
+        const res = await fetch(`${API_ROOT}/save_result`,{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(payload)
+        });
+
+        const r = await res.json();
+        alert(r.status==="saved" ? `保存しました！ (${name})` : "保存に失敗しました");
+      };
+
+
+
+      // CSVダウンロード
+      document.getElementById('btnSaveCsv').onclick = ()=>{
+        const now=new Date(),pad=n=>n.toString().padStart(2,'0');
+        const ts=`${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const accCsv  = 'time,x,y,z\n'+acc.map(d=>`${d.t},${d.ax},${d.ay},${d.az}`).join('\n');
+        const gyroCsv = 'time,x,y,z\n'+gyro.map(d=>`${d.t},${d.gx},${d.gy},${d.gz}`).join('\n');
+        const saveFile=(c,f)=>{
+          const b=new Blob([c],{type:'text/csv'}),u=URL.createObjectURL(b);
+          const a=document.createElement('a'); a.href=u; a.download=f; a.click(); URL.revokeObjectURL(u);
+        };
+        saveFile(accCsv,`${ts}_acc.csv`);
+        saveFile(gyroCsv,`${ts}_gyro.csv`);
+      };
+
+      function showConfettiAt(x, y) {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { x, y }
+        });
+      }
+
+
+    
+    </script>
+  </div>
+  <div id="autoToast">
+    やり直し
+  </div>
+</body>
+</html>
